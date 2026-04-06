@@ -1,0 +1,3119 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>歳出予算書 ビューア</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- chartjs-chart-treemap は Chart.js 4.x 非対応のため独自実装に置き換え -->
+  <style>
+    :root {
+      --p1: #4f46e5;
+      --p2: #6366f1;
+      --p3: #e0e7ff;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --green: #22c55e;
+      --bg: #f5f5f8;
+      --surface: #fff;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --r: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Meiryo UI", "Yu Gothic UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      height: 52px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--p1), #818cf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .brand-name {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--p1);
+    }
+
+    .brand-sub {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .spacer {
+      flex: 1;
+    }
+
+    .upload-btn {
+      background: var(--p1);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .upload-btn:hover {
+      background: #4338ca;
+    }
+
+    #fi {
+      display: none;
+    }
+
+    /* ── FILTER BAR ── */
+    .fbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .fbar select,
+    .fbar input {
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: 12px;
+      background: var(--bg);
+      outline: none;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+
+    .fbar select:focus,
+    .fbar input:focus {
+      border-color: var(--p2);
+    }
+
+    .fbar select.on {
+      border-color: var(--p1);
+      background: var(--p3);
+      color: var(--p1);
+      font-weight: 700;
+    }
+
+    .badge {
+      background: var(--p3);
+      color: var(--p1);
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-left: auto;
+      display: none;
+    }
+
+    .reset-link {
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 5px 8px;
+      border-radius: 6px;
+    }
+
+    .reset-link:hover {
+      background: var(--border);
+    }
+
+    /* ── MAIN ── */
+    .wrap {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px 24px;
+    }
+
+    /* ── KPI ── */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .kcard {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 14px 16px;
+    }
+
+    .kcard .lbl {
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 6px;
+    }
+
+    .kcard .val {
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    .kcard .sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .kcard.accent {
+      border-top: 3px solid var(--p1);
+    }
+
+    .kcard.up {
+      border-top: 3px solid var(--green);
+    }
+
+    .kcard.down {
+      border-top: 3px solid var(--red);
+    }
+
+    .sub.up {
+      color: var(--green);
+    }
+
+    .sub.down {
+      color: var(--red);
+    }
+
+    /* ── SATEI FUNNEL STRIP ── */
+    .funnel-strip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 16px 20px;
+      margin-bottom: 20px;
+    }
+
+    .funnel-strip h3 {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+
+    .funnel-inner {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+
+    .f-step {
+      flex: 1;
+      text-align: center;
+    }
+
+    .f-label {
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .f-bar-wrap {
+      height: 48px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      margin-bottom: 6px;
+    }
+
+    .f-bar {
+      width: 60%;
+      border-radius: 4px 4px 0 0;
+      transition: height .4s;
+    }
+
+    .f-amt {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .f-arrow {
+      font-size: 18px;
+      color: var(--border);
+      align-self: center;
+      flex: 0;
+      padding: 0 4px;
+    }
+
+    .f-pct {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    /* ── VIEW TABS ── */
+    .vtabs {
+      display: flex;
+      gap: 0;
+      background: var(--border);
+      border-radius: 10px;
+      padding: 3px;
+      width: fit-content;
+      margin-bottom: 16px;
+    }
+
+    .vt {
+      padding: 7px 18px;
+      border: none;
+      border-radius: 8px;
+      background: none;
+      font-size: 13px;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 500;
+      transition: all .15s;
+    }
+
+    .vt.on {
+      background: var(--surface);
+      color: var(--p1);
+      font-weight: 700;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, .1);
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.on {
+      display: block;
+    }
+
+    /* ── TABLE ── */
+    .tbox {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+    }
+
+    .tscroll {
+      overflow: auto;
+      max-height: calc(100vh - 400px);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    thead th {
+      background: #f9fafb;
+      padding: 9px 10px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      cursor: pointer;
+      border-bottom: 2px solid var(--border);
+      user-select: none;
+    }
+
+    thead th:hover {
+      color: var(--p1);
+    }
+
+    tbody tr:hover {
+      background: #f5f3ff;
+    }
+
+    tbody tr+tr {
+      border-top: 1px solid #f3f4f6;
+    }
+
+    td {
+      padding: 8px 10px;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    td.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+    }
+
+    td.cut {
+      color: var(--red);
+      text-align: right;
+      font-weight: 600;
+    }
+
+    td.zero {
+      color: var(--muted);
+      text-align: right;
+    }
+
+    td.inc {
+      color: var(--green);
+      text-align: right;
+      font-weight: 600;
+    }
+
+    .pill {
+      display: inline-block;
+      border-radius: 20px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .pill.new {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+
+    .pill.cont {
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    .pill.rinji {
+      background: #fce7f3;
+      color: #9d174d;
+    }
+
+    .pill.keijo {
+      background: #eff6ff;
+      color: #1e40af;
+    }
+
+    .pill.sinsa {
+      background: var(--p3);
+      color: var(--p1);
+    }
+
+    .dept-chip {
+      background: #f1f5f9;
+      color: #475569;
+      border-radius: 20px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* ── CARDS VIEW ── */
+    .cards-toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 14px;
+    }
+
+    .ecard {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: box-shadow .15s;
+    }
+
+    .ecard:hover {
+      box-shadow: 0 4px 12px rgba(79, 70, 229, .12);
+    }
+
+    .ecard-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .ecard-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      flex-shrink: 0;
+      background: var(--p3);
+      color: var(--p1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .ecard-dept {
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .ecard-name {
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .ecard-sub {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .ecard-amounts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .eamt {
+      background: var(--bg);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+
+    .eamt .albl {
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .eamt .aval {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .eamt.r8 .aval {
+      color: var(--p1);
+    }
+
+    .ecard-satei {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .satei-step {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .satei-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: var(--p2);
+    }
+
+    .satei-lbl {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .ecard-tags {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .cards-empty {
+      text-align: center;
+      padding: 60px;
+      color: var(--muted);
+      grid-column: 1/-1;
+    }
+
+    .ecard-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 2px;
+    }
+
+    .detail-btn {
+      background: none;
+      border: 1.5px solid var(--p2);
+      color: var(--p1);
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .detail-btn:hover {
+      background: var(--p3);
+    }
+
+    /* ── DRAWER ── */
+    #drawerOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .35);
+      z-index: 300;
+      transition: opacity .2s;
+    }
+
+    #drawerOverlay.open {
+      display: block;
+    }
+
+    #drawer {
+      position: fixed;
+      top: 0;
+      right: -680px;
+      width: 680px;
+      height: 100vh;
+      background: var(--surface);
+      box-shadow: -4px 0 24px rgba(0, 0, 0, .15);
+      z-index: 400;
+      display: flex;
+      flex-direction: column;
+      transition: right .25s cubic-bezier(.4, 0, .2, 1);
+      overflow: hidden;
+    }
+
+    #drawer.open {
+      right: 0;
+    }
+
+    .drw-hd {
+      padding: 18px 20px 14px;
+      border-bottom: 2px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+    }
+
+    .drw-hd-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      flex-shrink: 0;
+      background: var(--p1);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .drw-bread {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .drw-title {
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.3;
+      color: var(--text);
+    }
+
+    .drw-dept {
+      font-size: 12px;
+      color: var(--p1);
+      margin-top: 3px;
+      font-weight: 600;
+    }
+
+    .drw-close {
+      margin-left: auto;
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: var(--muted);
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .drw-close:hover {
+      background: var(--border);
+    }
+
+    .drw-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .drw-sec {
+      margin-bottom: 24px;
+    }
+
+    .drw-sec-title {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--p1);
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--p3);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* 年度比較テーブル */
+    .year-tbl {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .year-tbl th {
+      background: #f9fafb;
+      padding: 7px 10px;
+      text-align: right;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      border-bottom: 2px solid var(--border);
+    }
+
+    .year-tbl th:first-child {
+      text-align: left;
+    }
+
+    .year-tbl td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #f3f4f6;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .year-tbl td:first-child {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 11px;
+    }
+
+    .year-tbl tr.total td {
+      font-weight: 800;
+      background: #f5f3ff;
+      color: var(--p1);
+    }
+
+    .year-tbl td.up {
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .year-tbl td.dn {
+      color: var(--red);
+      font-weight: 700;
+    }
+
+    /* 査定フロー mini */
+    .satei-flow {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .sf-step {
+      flex: 1;
+      padding: 10px 8px;
+      text-align: center;
+      border-right: 1px solid var(--border);
+    }
+
+    .sf-step:last-child {
+      border-right: none;
+    }
+
+    .sf-step.active {
+      background: var(--p1);
+      color: #fff;
+    }
+
+    .sf-step.active .sf-lbl {
+      color: rgba(255, 255, 255, .8);
+    }
+
+    .sf-lbl {
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .sf-val {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .sf-cut {
+      font-size: 10px;
+      margin-top: 2px;
+    }
+
+    /* 明細テーブル */
+    .detail-tbl {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .detail-tbl th {
+      background: #f9fafb;
+      padding: 6px 8px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .detail-tbl th.r {
+      text-align: right;
+    }
+
+    .detail-tbl td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #f9fafb;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .detail-tbl td.r {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .detail-tbl tr:hover td {
+      background: #f5f3ff;
+    }
+
+    /* 評価フラグ */
+    .flags-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .flag-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+
+    .flag-item .fl {
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .flag-item .fv {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .flag-item.on {
+      background: var(--p3);
+      border-color: var(--p2);
+    }
+
+    .flag-item.on .fv {
+      color: var(--p1);
+    }
+
+    .flag-item.warn {
+      background: #fef9c3;
+      border-color: #fbbf24;
+    }
+
+    .flag-item.warn .fv {
+      color: #92400e;
+    }
+
+    /* テキストエリア */
+    .drw-textarea {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+      outline: none;
+      transition: border-color .15s;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .drw-textarea:focus {
+      border-color: var(--p2);
+      background: #fff;
+    }
+
+    .drw-save-btn {
+      margin-top: 6px;
+      background: var(--p1);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .drw-save-btn:hover {
+      background: #4338ca;
+    }
+
+    .saved-msg {
+      font-size: 11px;
+      color: var(--green);
+      margin-left: 8px;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .saved-msg.show {
+      opacity: 1;
+    }
+
+    /* ── TREE ── */
+    .tree-head {
+      display: grid;
+      grid-template-columns: 1fr 110px 110px 110px 90px;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      background: #f9fafb;
+      border: 1px solid var(--border);
+      border-radius: var(--r) var(--r) 0 0;
+      border-bottom: none;
+    }
+
+    .tree-head span {
+      text-align: right;
+    }
+
+    .tree-head span:first-child {
+      text-align: left;
+    }
+
+    .tree-body {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--r) var(--r);
+      overflow: auto;
+      max-height: calc(100vh-360px);
+    }
+
+    .tr {
+      display: grid;
+      grid-template-columns: 1fr 110px 110px 110px 90px;
+      align-items: center;
+      padding: 7px 12px;
+      border-bottom: 1px solid #f3f4f6;
+      cursor: pointer;
+      transition: background .1s;
+      gap: 4px;
+    }
+
+    .tr:hover {
+      background: #f5f3ff;
+    }
+
+    .tr.l0 {
+      background: #ede9fe;
+      font-weight: 800;
+      font-size: 13px;
+      color: var(--p1);
+      border-bottom: 2px solid var(--border);
+    }
+
+    .tr.l0:hover {
+      background: #ddd6fe;
+    }
+
+    .tr.l1 {
+      padding-left: 26px;
+      font-weight: 700;
+    }
+
+    .tr.l2 {
+      padding-left: 44px;
+      color: #374151;
+    }
+
+    .tr.l3 {
+      padding-left: 62px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tr.l4 {
+      padding-left: 80px;
+      color: #9ca3af;
+      font-size: 11px;
+    }
+
+    .tn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .tc {
+      opacity: .4;
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+
+    .tt {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tog {
+      font-size: 9px;
+      width: 12px;
+      flex-shrink: 0;
+    }
+
+    .ta {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ta.req {
+      color: var(--muted);
+    }
+
+    .ta.r8 {
+      color: var(--p1);
+      font-weight: 600;
+    }
+
+    .tdiff {
+      text-align: right;
+      font-size: 11px;
+    }
+
+    .tdiff.up {
+      color: var(--green);
+    }
+
+    .tdiff.dn {
+      color: var(--red);
+    }
+
+    .ch {
+      display: none;
+    }
+
+    .ch.open {
+      display: block;
+    }
+
+    /* ── CHARTS ── */
+    .cg1 {
+      display: grid;
+      grid-template-columns: 3fr 2fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .cg2 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .cc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 18px;
+    }
+
+    .cc h4 {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .cc .cs {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .cw {
+      position: relative;
+      height: 260px;
+    }
+
+    .cw.sm {
+      height: 200px;
+    }
+
+    /* ── 事業分析 SPLIT ── */
+    .analysis-layout {
+      display: flex;
+      height: calc(100vh - 240px);
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    /* left list */
+    .anlys-list-col {
+      width: 280px;
+      min-width: 280px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      background: #fafafa;
+    }
+
+    .anlys-search {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .anlys-search input {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 12px;
+      outline: none;
+      background: #fff;
+    }
+
+    .anlys-search input:focus {
+      border-color: var(--p2);
+    }
+
+    .anlys-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .anlys-group-hd {
+      padding: 6px 12px;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      background: #f3f4f6;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .anlys-item {
+      padding: 9px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #f3f4f6;
+      transition: background .1s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .anlys-item:hover {
+      background: #ede9fe;
+    }
+
+    .anlys-item.selected {
+      background: var(--p3);
+      border-left: 3px solid var(--p1);
+    }
+
+    .anlys-item-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    .anlys-item.selected .anlys-item-dot {
+      background: var(--p1);
+    }
+
+    .anlys-item-name {
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.3;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .anlys-item.selected .anlys-item-name {
+      font-weight: 700;
+      color: var(--p1);
+    }
+
+    .anlys-item-amt {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    .cut-badge {
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    .cut-badge.hi {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .cut-badge.md {
+      background: #fef9c3;
+      color: #92400e;
+    }
+
+    .cut-badge.lo {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    /* right panel */
+    .anlys-panel {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .anlys-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted);
+      gap: 12px;
+    }
+
+    .anlys-empty .ei {
+      font-size: 52px;
+      opacity: .2;
+    }
+
+    .anlys-ph {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* analysis header */
+    .anlys-hd {
+      background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      flex-shrink: 0;
+    }
+
+    .anlys-bread {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .anlys-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+
+    .anlys-kpis {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .anlys-kpi {
+      background: rgba(255, 255, 255, .7);
+      border: 1px solid rgba(99, 102, 241, .2);
+      border-radius: 8px;
+      padding: 8px 14px;
+      min-width: 110px;
+    }
+
+    .anlys-kpi .ak-lbl {
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .anlys-kpi .ak-val {
+      font-size: 16px;
+      font-weight: 800;
+      margin-top: 2px;
+    }
+
+    .anlys-kpi.cut .ak-val {
+      color: var(--red);
+    }
+
+    .anlys-kpi.r8 .ak-val {
+      color: var(--p1);
+    }
+
+    /* section cards */
+    .an-sec {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 16px;
+    }
+
+    .an-sec-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .an-sec-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .an-grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .an-grid3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+
+    .cw-an {
+      position: relative;
+      height: 220px;
+    }
+
+    .cw-tall {
+      position: relative;
+    }
+
+    /* detail table inside analysis */
+    .an-tbl {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .an-tbl th {
+      background: #f9fafb;
+      padding: 7px 9px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .an-tbl th.r {
+      text-align: right;
+    }
+
+    .an-tbl td {
+      padding: 7px 9px;
+      border-bottom: 1px solid #f9fafb;
+      font-size: 12px;
+    }
+
+    .an-tbl td.r {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .an-tbl tr:hover td {
+      background: #f5f3ff;
+    }
+
+    .an-tbl .subtotal td {
+      font-weight: 800;
+      background: #f5f3ff;
+      color: var(--p1);
+    }
+
+    /* progress-like cut bar */
+    .cut-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .cut-bar-label {
+      width: 130px;
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+    }
+
+    .cut-bar-track {
+      flex: 1;
+      height: 14px;
+      background: #f3f4f6;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .cut-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width .4s;
+    }
+
+    .cut-bar-val {
+      width: 60px;
+      text-align: right;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* notes inside analysis */
+    .an-note-ta {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 72px;
+      outline: none;
+      background: var(--bg);
+    }
+
+    .an-note-ta:focus {
+      border-color: var(--p2);
+      background: #fff;
+    }
+
+    .an-save-btn {
+      background: var(--p1);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+
+    .an-save-btn:hover {
+      background: #4338ca;
+    }
+
+    .an-saved {
+      font-size: 11px;
+      color: var(--green);
+      margin-left: 8px;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .an-saved.show {
+      opacity: 1;
+    }
+
+    /* ── TREEMAP ── */
+    .tm-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 16px;
+    }
+
+    .tm-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .tm-controls label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .tm-controls select {
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: 12px;
+      background: var(--bg);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .tm-controls select:focus {
+      border-color: var(--p2);
+    }
+
+    .tm-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .tm-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .tm-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .tm-canvas-wrap {
+      position: relative;
+      width: 100%;
+      height: calc(100vh - 360px);
+      min-height: 400px;
+    }
+
+    .tm-tip {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    #tmTooltip {
+      position: fixed;
+      display: none;
+      z-index: 9999;
+      pointer-events: none;
+      background: rgba(15, 23, 42, .92);
+      color: #fff;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      line-height: 1.6;
+      max-width: 260px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, .3);
+    }
+
+    /* ── EMPTY ── */
+    .empty {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--muted);
+    }
+
+    .empty .ei {
+      font-size: 52px;
+      margin-bottom: 16px;
+      opacity: .25;
+    }
+
+    .empty .et {
+      font-size: 17px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .empty .ed {
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .empty-btn {
+      margin-top: 20px;
+      display: inline-block;
+      background: var(--p1);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .empty-btn:hover {
+      background: #4338ca;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">出</div>
+      <div>
+        <div class="brand-name">歳出予算書ビューア</div>
+        <div class="brand-sub">事業別予算・査定フロー可視化</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <button class="upload-btn" onclick="document.getElementById('fi').click()">＋ CSVを開く</button>
+    <input type="file" id="fi" accept=".csv">
+  </div>
+
+  <!-- FILTER BAR -->
+  <div class="fbar">
+    <span style="font-size:11px;font-weight:700;color:var(--muted)">絞り込み</span>
+    <select id="fDept" onchange="go()">
+      <option value="">所属名</option>
+    </select>
+    <select id="fKan" onchange="go()">
+      <option value="">款</option>
+    </select>
+    <select id="fKou" onchange="go()">
+      <option value="">項</option>
+    </select>
+    <select id="fSeishitu" onchange="go()">
+      <option value="">性質</option>
+    </select>
+    <select id="fShinki" onchange="go()">
+      <option value="">新規/継続</option>
+      <option value="0">新規</option>
+      <option value="1">継続</option>
+    </select>
+    <select id="fRinkei" onchange="go()">
+      <option value="">経費区分</option>
+      <option value="0">経常</option>
+      <option value="10">臨時</option>
+    </select>
+    <input type="text" id="fq" placeholder="🔍 事業名・節名で検索…" oninput="go()" style="width:220px;">
+    <button class="reset-link" onclick="reset()">✕ リセット</button>
+    <span class="badge" id="badge"></span>
+  </div>
+
+  <div class="wrap">
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kcard accent">
+        <div class="lbl">総件数</div>
+        <div class="val" id="k1">—</div>
+        <div class="sub" id="k1s">—</div>
+      </div>
+      <div class="kcard accent">
+        <div class="lbl">所属数</div>
+        <div class="val" id="k2">—</div>
+      </div>
+      <div class="kcard accent">
+        <div class="lbl">R7 予算額</div>
+        <div class="val" id="k3">—</div>
+      </div>
+      <div class="kcard accent">
+        <div class="lbl">要求額（R8）</div>
+        <div class="val" id="k4">—</div>
+      </div>
+      <div class="kcard accent">
+        <div class="lbl">R8 査定額</div>
+        <div class="val" id="k5">—</div>
+      </div>
+      <div class="kcard" id="k6c">
+        <div class="lbl">査定率（削減率）</div>
+        <div class="val" id="k6">—</div>
+        <div class="sub" id="k6s">—</div>
+      </div>
+    </div>
+
+    <!-- 査定フロー -->
+    <div class="funnel-strip" id="funnelStrip">
+      <h3>査定フロー — 要求から確定まで</h3>
+      <div class="funnel-inner" id="funnelInner"></div>
+    </div>
+
+    <!-- VIEW TABS -->
+    <div class="vtabs">
+      <button class="vt on" onclick="sv('table',this)">一覧表</button>
+      <button class="vt" onclick="sv('cards',this)">事業カード</button>
+      <button class="vt" onclick="sv('tree',this)">階層ビュー</button>
+      <button class="vt" onclick="sv('chart',this)">グラフ</button>
+      <button class="vt" onclick="sv('treemap',this)">ツリーマップ</button>
+      <button class="vt" onclick="sv('analysis',this)">🔍 事業分析</button>
+    </div>
+
+    <!-- TABLE VIEW -->
+    <div class="view on" id="view-table">
+      <div id="emptyT" class="empty">
+        <div class="ei">📊</div>
+        <div class="et">CSVを読み込んでください</div>
+        <div class="ed">右上の「CSVを開く」から<br><code>digital_yosansyo_saisyutsu-1.csv</code> を選択</div>
+        <button class="empty-btn" onclick="document.getElementById('fi').click()">ファイルを選択</button>
+      </div>
+      <div id="tableBox" style="display:none">
+        <div class="tbox">
+          <div class="tscroll">
+            <table>
+              <thead>
+                <tr>
+                  <th onclick="srt('所属名')">所属</th>
+                  <th onclick="srt('款名')">款</th>
+                  <th onclick="srt('項名')">項</th>
+                  <th onclick="srt('目名')">目</th>
+                  <th onclick="srt('事務事業名')">事務事業名</th>
+                  <th onclick="srt('節名')">節</th>
+                  <th onclick="srt('細節名')">細節</th>
+                  <th onclick="srt('性質名')">性質</th>
+                  <th onclick="srt('R7予算額')" style="text-align:right">R7予算額</th>
+                  <th onclick="srt('要求額')" style="text-align:right">要求額</th>
+                  <th onclick="srt('査定額３')" style="text-align:right">査定額</th>
+                  <th onclick="srt('R8予算額')" style="text-align:right">R8予算額</th>
+                  <th style="text-align:right">R7比増減</th>
+                  <th>性質</th>
+                  <th>経費</th>
+                  <th>新規</th>
+                </tr>
+              </thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARDS VIEW -->
+    <div class="view" id="view-cards">
+      <div class="cards-grid" id="cardsGrid">
+        <div class="cards-empty">CSVを読み込んでください</div>
+      </div>
+    </div>
+
+    <!-- ツリーマップ VIEW -->
+    <div class="view" id="view-treemap">
+      <div class="tm-wrap">
+        <div class="tm-controls">
+          <label>色分け</label>
+          <select id="tmColor" onchange="renderTreemap()">
+            <option value="kan">款別</option>
+            <option value="sei">性質別</option>
+            <option value="cut">削減率（高=赤）</option>
+            <option value="shinki">新規 / 継続</option>
+          </select>
+          <label style="margin-left:8px">グループ</label>
+          <select id="tmGroup" onchange="renderTreemap()">
+            <option value="kan">款名</option>
+            <option value="kou">款 › 項</option>
+            <option value="sei">性質名</option>
+            <option value="dept">所属名</option>
+          </select>
+          <label style="margin-left:8px">金額</label>
+          <select id="tmAmt" onchange="renderTreemap()">
+            <option value="r8">R8 確定額</option>
+            <option value="r7">R7 予算額</option>
+            <option value="req">要求額</option>
+          </select>
+          <span style="margin-left:auto;font-size:11px;color:var(--muted)" id="tmCount"></span>
+        </div>
+        <div class="tm-canvas-wrap" id="tmCanvasWrap">
+          <canvas id="tmCanvas" style="display:block"></canvas>
+        </div>
+        <div id="tmLegend" class="tm-legend"></div>
+        <div class="tm-tip">クリックすると「事業分析」タブでその事業の詳細を表示します</div>
+      </div>
+    </div>
+    <div id="tmTooltip"></div>
+
+    <!-- 事業分析 VIEW -->
+    <div class="view" id="view-analysis">
+      <div class="analysis-layout">
+        <!-- LEFT: 事業リスト -->
+        <div class="anlys-list-col">
+          <div class="anlys-search">
+            <input type="text" id="anlysQ" placeholder="🔍 事業名を検索…" oninput="renderAnalysisList()">
+          </div>
+          <div class="anlys-list" id="anlysList">
+            <div class="anlys-empty" style="height:200px">
+              <div class="ei">📂</div><span style="font-size:13px">CSVを読み込んでください</span>
+            </div>
+          </div>
+        </div>
+        <!-- RIGHT: 分析パネル -->
+        <div class="anlys-panel" id="anlysPanel">
+          <div class="anlys-empty">
+            <div class="ei">🔍</div>
+            <span style="font-size:14px;font-weight:700">左リストから事業を選択してください</span>
+            <span style="font-size:12px;color:var(--muted)">事業ごとの査定フロー・性質内訳・比較分析を表示します</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DRAWER OVERLAY -->
+    <div id="drawerOverlay" onclick="closeDrawer()"></div>
+    <!-- DRAWER PANEL -->
+    <div id="drawer">
+      <div class="drw-hd">
+        <div class="drw-hd-icon" id="drwIcon">—</div>
+        <div style="flex:1;min-width:0">
+          <div class="drw-bread" id="drwBread"></div>
+          <div class="drw-title" id="drwTitle"></div>
+          <div class="drw-dept" id="drwDept"></div>
+        </div>
+        <button class="drw-close" onclick="closeDrawer()">✕</button>
+      </div>
+      <div class="drw-body" id="drwBody"></div>
+    </div>
+
+    <!-- TREE VIEW -->
+    <div class="view" id="view-tree">
+      <div class="tree-head">
+        <span>科目 / 事業</span>
+        <span>要求額</span>
+        <span>査定額</span>
+        <span>R8予算額</span>
+        <span>R7比増減</span>
+      </div>
+      <div class="tree-body" id="treeBody">
+        <div class="empty" style="padding:40px">
+          <div class="ei">🌳</div>
+          <div class="et">CSVを読み込んでください</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHART VIEW -->
+    <div class="view" id="view-chart">
+      <div id="emptyC" class="empty">
+        <div class="ei">📈</div>
+        <div class="et">CSVを読み込んでください</div>
+      </div>
+      <div id="chartBox" style="display:none">
+        <div class="cg1">
+          <div class="cc">
+            <h4>款別 予算額比較（R7 vs R8）</h4>
+            <div class="cs">単位：万円</div>
+            <div class="cw"><canvas id="cKan"></canvas></div>
+          </div>
+          <div class="cc">
+            <h4>R8 款別構成比</h4>
+            <div class="cs">査定後予算額ベース</div>
+            <div class="cw"><canvas id="cPie"></canvas></div>
+          </div>
+        </div>
+        <div class="cg2">
+          <div class="cc">
+            <h4>性質別 R8 予算額</h4>
+            <div class="cs">人件費・物件費・補助費等…</div>
+            <div class="cw sm"><canvas id="cSeishitu"></canvas></div>
+          </div>
+          <div class="cc">
+            <h4>所属別 R8（上位12）</h4>
+            <div class="cs">単位：万円</div>
+            <div class="cw sm"><canvas id="cDept"></canvas></div>
+          </div>
+          <div class="cc">
+            <h4>新規 / 継続 事業</h4>
+            <div class="cs">件数ベース</div>
+            <div class="cw sm"><canvas id="cShinki"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /wrap -->
+
+  <script>
+    let all = [], fil = [], sk = null, sasc = true, chts = {};
+
+    /* ── FILE ─── */
+    fetch('digital_yosansyo_saisyutsu-1.csv')
+      .then(r => r.text())
+      .then(txt => { all = parseCSV(txt); boot(); })
+      .catch(err => console.error('CSV読み込み失敗:', err));
+
+    function parseCSV(txt) {
+      const ls = txt.split(/\r?\n/).filter(l => l.trim());
+      const hd = ls[0].split(',').map(h => h.replace(/[\r\n]/g, '').trim());
+      return ls.slice(1).map(l => {
+        const vs = split(l); const row = {};
+        hd.forEach((h, i) => row[h] = (vs[i] || '').trim());
+        return row;
+      });
+    }
+    function split(l) {
+      const r = []; let c = '', q = false;
+      for (const ch of l) { if (ch === '"') q = !q; else if (ch === ',' && !q) { r.push(c); c = ''; } else c += ch; }
+      r.push(c); return r;
+    }
+    function n(s) { const v = parseFloat((s || '').replace(/,/g, '').trim()); return isNaN(v) ? 0 : v; }
+    function fs(v) {
+      if (v === 0) return '—';
+      if (Math.abs(v) >= 1e8) return (v / 1e8).toFixed(1) + '億';
+      if (Math.abs(v) >= 1e4) return (v / 1e4).toFixed(0) + '万';
+      return v.toLocaleString();
+    }
+    function fl(v, unit = '') {
+      if (v === 0) return '—';
+      return (v / 1e4).toLocaleString('ja-JP', { maximumFractionDigits: 1 }) + (unit ? unit : '万円');
+    }
+
+    /* ── BOOT ─── */
+    function boot() {
+      setupF(); go();
+      ['emptyT', 'emptyC'].forEach(id => document.getElementById(id).style.display = 'none');
+      ['tableBox', 'chartBox'].forEach(id => document.getElementById(id).style.display = 'block');
+    }
+    function setupF() {
+      const s = (id, key, prefix) => {
+        const el = document.getElementById(id);
+        const vs = [...new Set(all.map(r => r[key]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ja'));
+        el.innerHTML = `<option value="">${prefix}</option>` + vs.map(v => `<option value="${v}">${v}</option>`).join('');
+      };
+      s('fDept', '所属名', '所属名');
+      s('fKan', '款名', '款');
+      s('fKou', '項名', '項');
+      // 性質名から主要カテゴリ
+      const sei = [...new Set(all.map(r => (r['性質名'] || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ja'));
+      const sel = document.getElementById('fSeishitu');
+      sel.innerHTML = '<option value="">性質</option>' + sei.map(v => `<option value="${v}">${v}</option>`).join('');
+    }
+
+    /* ── FILTER ─── */
+    function go() {
+      const dept = document.getElementById('fDept').value;
+      const kan = document.getElementById('fKan').value;
+      const kou = document.getElementById('fKou').value;
+      const sei = document.getElementById('fSeishitu').value;
+      const shinki = document.getElementById('fShinki').value;
+      const rinkei = document.getElementById('fRinkei').value;
+      const q = document.getElementById('fq').value.toLowerCase();
+
+      fil = all.filter(r =>
+        (!dept || r['所属名'] === dept) &&
+        (!kan || r['款名'] === kan) &&
+        (!kou || r['項名'] === kou) &&
+        (!sei || (r['性質名'] || '').trim() === sei) &&
+        (!shinki || r['新規継続'] === shinki) &&
+        (!rinkei || r['臨経区分'] === rinkei) &&
+        (!q || ['事務事業名', '節名', '細節名', '款名', '項名'].some(k => r[k] && r[k].toLowerCase().includes(q)))
+      );
+
+      const has = dept || kan || kou || sei || shinki || rinkei || q;
+      const bd = document.getElementById('badge');
+      bd.style.display = has ? '' : 'none';
+      bd.textContent = fil.length + ' 件';
+      ['fDept', 'fKan', 'fKou', 'fSeishitu', 'fShinki', 'fRinkei'].forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.toggle('on', !!el.value);
+      });
+
+      if (all.length) {
+        updateKPI(); drawFunnel(); renderTable(); renderCards(); renderTree(); renderCharts();
+        if (document.getElementById('view-treemap').classList.contains('on')) renderTreemap();
+      }
+    }
+    function reset() {
+      ['fDept', 'fKan', 'fKou', 'fSeishitu', 'fShinki', 'fRinkei'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('fq').value = ''; go();
+    }
+
+    /* ── KPI ─── */
+    function updateKPI() {
+      const r7t = fil.reduce((s, r) => s + n(r['R7予算額']), 0);
+      const req = fil.reduce((s, r) => s + n(r['要求額']), 0);
+      const r8t = fil.reduce((s, r) => s + n(r['R8予算額']), 0);
+      const diff = r8t - r7t;
+      const sateiRate = req > 0 ? ((req - r8t) / req * 100) : 0;
+      const pts = new Set(fil.map(r => r['所属名'])).size;
+      const ev = new Set(fil.map(r => r['事務事業名']).filter(Boolean)).size;
+
+      document.getElementById('k1').textContent = fil.length.toLocaleString() + ' 件';
+      document.getElementById('k1s').textContent = '事業数 ' + ev;
+      document.getElementById('k2').textContent = pts + ' 所属';
+      document.getElementById('k3').textContent = fs(r7t) + '円';
+      document.getElementById('k4').textContent = fs(req) + '円';
+      document.getElementById('k5').textContent = fs(r8t) + '円';
+      document.getElementById('k6').textContent = sateiRate.toFixed(1) + '% 削減';
+      const s = document.getElementById('k6s');
+      const d = req > 0 ? (r8t - req) : 0;
+      s.textContent = (d >= 0 ? '▲ +' : '▽ ') + fs(Math.abs(d)) + '円';
+      s.className = 'sub ' + (d >= 0 ? 'up' : 'down');
+      const c = document.getElementById('k6c');
+      c.className = 'kcard ' + (sateiRate > 10 ? 'down' : sateiRate > 0 ? 'accent' : 'up');
+    }
+
+    /* ── FUNNEL ─── */
+    function drawFunnel() {
+      const keys = ['要求額', '査定額１', '査定額２', '査定額３', 'R8予算額'];
+      const labels = ['要求', '査定①', '査定②', '査定③', '確定(R8)'];
+      const vals = keys.map(k => fil.reduce((s, r) => s + n(r[k]), 0));
+      const max = vals[0] || 1;
+      const colors = ['#a5b4fc', '#818cf8', '#6366f1', '#4f46e5', '#3730a3'];
+
+      const el = document.getElementById('funnelInner');
+      el.innerHTML = vals.map((v, i) => {
+        const h = Math.max(12, Math.round((v / max) * 48));
+        const pct = i === 0 ? 100 : vals[0] > 0 ? (v / vals[0] * 100).toFixed(0) + '%' : '—';
+        const arrow = i < vals.length - 1 ? `<span class="f-arrow">›</span>` : '';
+        return `<div class="f-step">
+      <div class="f-label">${labels[i]}</div>
+      <div class="f-bar-wrap">
+        <div class="f-bar" style="height:${h}px;background:${colors[i]};"></div>
+      </div>
+      <div class="f-amt">${fs(v)}円</div>
+      <div class="f-pct">${pct}</div>
+    </div>${arrow}`;
+      }).join('');
+    }
+
+    /* ── TABLE ─── */
+    function srt(k) { sasc = sk === k ? !sasc : true; sk = k; renderTable(); }
+    function renderTable() {
+      let rows = fil;
+      if (sk) {
+        rows = [...rows].sort((a, b) => {
+          if (sk.includes('額') || sk.includes('差')) { return sasc ? n(a[sk]) - n(b[sk]) : n(b[sk]) - n(a[sk]); }
+          return sasc ? (a[sk] || '').localeCompare(b[sk] || '', 'ja') : (b[sk] || '').localeCompare(a[sk] || '', 'ja');
+        });
+      }
+      const tbody = document.getElementById('tbody');
+      tbody.innerHTML = rows.map(r => {
+        const r7 = n(r['R7予算額']), req = n(r['要求額']), r8 = n(r['R8予算額']);
+        const diff = r8 - r7;
+        const dc = diff > 0 ? 'inc' : diff < 0 ? 'cut' : 'zero';
+        const ds = diff === 0 ? '—' : (diff > 0 ? '+' : '') + diff.toLocaleString();
+        const sateiDiff = r8 - req;
+        const sc = sateiDiff < 0 ? 'cut' : sateiDiff > 0 ? 'inc' : 'zero';
+        const ss = sateiDiff === 0 ? '—' : (sateiDiff > 0 ? '+' : '') + sateiDiff.toLocaleString();
+        const sei = (r['性質名'] || '').trim();
+        const seiColor = {
+          '人件費': '#fce7f3', '物件費': '#eff6ff', '扶助費': '#fef3c7',
+          '補助費等': '#f0fdf4', '普通建設事業費': '#f5f3ff', '公債費': '#fdf2f8'
+        };
+        const bg = seiColor[sei] || '#f9fafb';
+        const shinki = r['新規継続'] === '0' ? '<span class="pill new">新規</span>' : '<span class="pill cont">継続</span>';
+        const rinkei = r['臨経区分'] === '10' ? '<span class="pill rinji">臨時</span>' : '<span class="pill keijo">経常</span>';
+        return `<tr>
+      <td><span class="dept-chip">${r['所属名'] || ''}</span></td>
+      <td>${r['款名'] || ''}</td>
+      <td>${r['項名'] || ''}</td>
+      <td>${r['目名'] || ''}</td>
+      <td>${r['事務事業名'] || ''}</td>
+      <td>${r['節名'] || ''}</td>
+      <td>${r['細節名'] || ''}</td>
+      <td style="background:${bg}">${sei}</td>
+      <td class="num">${r7 ? r7.toLocaleString() : '—'}</td>
+      <td class="num">${req ? req.toLocaleString() : '—'}</td>
+      <td class="${sc}" title="要求比">${ss}</td>
+      <td class="num" style="color:var(--p1);font-weight:700">${r8 ? r8.toLocaleString() : '—'}</td>
+      <td class="${dc}">${ds}</td>
+      <td style="background:${bg};font-size:11px">${sei}</td>
+      <td>${rinkei}</td>
+      <td>${shinki}</td>
+    </tr>`;
+      }).join('');
+    }
+
+    /* ── CARDS ─── */
+    let cardData = {};  // 事務事業名 → {meta, rows[]}
+
+    function renderCards() {
+      const grid = document.getElementById('cardsGrid');
+      if (!fil.length) { grid.innerHTML = '<div class="cards-empty">データがありません</div>'; return; }
+
+      // 事務事業単位で集計（行も保持）
+      cardData = {};
+      fil.forEach(r => {
+        const k = r['事務事業名'] || '（事業名なし）';
+        if (!cardData[k]) cardData[k] = {
+          name: k, dept: r['所属名'], kan: r['款名'], kou: r['項名'], moku: r['目名'],
+          r7: 0, req: 0, s1: 0, s2: 0, s3: 0, r8: 0, nikuku: n(r['肉付予算額']),
+          shinki: r['新規継続'], rinkei: r['臨経区分'], sei: (r['性質名'] || '').trim(),
+          hyoka: r['評価対象'], juten: r['重点ヒアリング'], hard: r['ハード事業'],
+          jigyoSei: r['事業性質区分'], shuyoJigyo: r['主要事業区分'],
+          hoshu: r['補単区分'], rows: []
+        };
+        const e = cardData[k];
+        e.r7 += n(r['R7予算額']);
+        e.req += n(r['要求額']);
+        e.s1 += n(r['査定額１']);
+        e.s2 += n(r['査定額２']);
+        e.s3 += n(r['査定額３']);
+        e.r8 += n(r['R8予算額']);
+        e.rows.push(r);
+      });
+
+      const list = Object.values(cardData).sort((a, b) => b.r8 - a.r8);
+      const show = list.slice(0, 100);
+
+      const esc = s => s.replace(/'/g, "&#39;");
+      grid.innerHTML = show.map(e => {
+        const diff = e.r8 - e.r7;
+        const sateiCut = e.req > 0 ? ((e.req - e.r8) / e.req * 100) : 0;
+        const pct = Math.min(1, e.req > 0 ? e.r8 / e.req : 1);
+        const shinki = e.shinki === '0' ? '<span class="pill new">新規</span>' : '<span class="pill cont">継続</span>';
+        const rinkei = e.rinkei === '10' ? '<span class="pill rinji">臨時</span>' : '<span class="pill keijo">経常</span>';
+        const diffSpan = diff === 0 ? '' : `<span style="font-size:11px;color:${diff > 0 ? 'var(--green)' : 'var(--red)'}">${diff > 0 ? '▲+' : '▽'}${fs(Math.abs(diff))}円</span>`;
+        const icon = (e.kan || '').slice(0, 2) || '—';
+        const saved = localStorage.getItem('desc_' + e.name);
+        const descBadge = saved ? `<span style="font-size:10px;color:var(--muted)">📝 説明あり</span>` : '';
+        return `<div class="ecard" onclick="openDrawer('${esc(e.name)}')" style="cursor:pointer">
+      <div class="ecard-head">
+        <div class="ecard-icon">${icon}</div>
+        <div style="min-width:0">
+          <div class="ecard-dept">${e.dept} · ${e.kan}</div>
+          <div class="ecard-name">${e.name}</div>
+          <div class="ecard-sub">${e.moku}</div>
+        </div>
+      </div>
+      <div class="ecard-amounts">
+        <div class="eamt"><div class="albl">R7 予算額</div><div class="aval">${fs(e.r7)}円</div></div>
+        <div class="eamt r8"><div class="albl">R8 確定額</div><div class="aval">${fs(e.r8)}円 ${diffSpan}</div></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px">
+          <span>査定率 ${(pct * 100).toFixed(0)}%（要求 ${fs(e.req)}円）</span>
+          ${sateiCut > 0 ? `<span style="color:var(--red)">▽ ${sateiCut.toFixed(1)}% 削減</span>` : ''}
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${(pct * 100).toFixed(1)}%;background:var(--p2);border-radius:3px"></div>
+        </div>
+      </div>
+      <div class="ecard-footer">
+        <div class="ecard-tags">${shinki}${rinkei}<span class="pill sinsa" style="font-size:10px">${e.sei}</span></div>
+        <div style="display:flex;align-items:center;gap:6px">${descBadge}<span class="detail-btn">詳細 ›</span></div>
+      </div>
+    </div>`;
+      }).join('');
+      if (list.length > 100) grid.innerHTML += `<div class="cards-empty" style="padding:20px">（${list.length}件中100件表示。絞り込みで絞ってください）</div>`;
+    }
+
+    /* ── DRAWER ─── */
+    function openDrawer(key) {
+      const e = cardData[key]; if (!e) return;
+      const icon = (e.kan || '').slice(0, 2) || '—';
+      document.getElementById('drwIcon').textContent = icon;
+      document.getElementById('drwBread').textContent = `${e.kan} › ${e.kou} › ${e.moku}`;
+      document.getElementById('drwTitle').textContent = e.name;
+      document.getElementById('drwDept').textContent = e.dept;
+
+      // 査定フロー
+      const steps = [
+        { l: 'R7予算', v: e.r7 }, { l: '要求額', v: e.req },
+        { l: '査定①', v: e.s1 }, { l: '査定②', v: e.s2 }, { l: '査定③', v: e.s3 },
+        { l: 'R8確定', v: e.r8 }
+      ];
+      const maxV = Math.max(...steps.map(s => s.v)) || 1;
+      const flowHtml = steps.map((s, i) => {
+        const isR8 = i === steps.length - 1;
+        const cut = i > 1 && s.v > 0 && steps[i - 1].v > 0 ? ((s.v - steps[i - 1].v) / steps[i - 1].v * 100) : null;
+        return `<div class="sf-step${isR8 ? ' active' : ''}">
+      <div class="sf-lbl">${s.l}</div>
+      <div class="sf-val">${s.v > 0 ? fs(s.v) + '円' : '—'}</div>
+      ${cut !== null ? `<div class="sf-cut" style="color:${cut < 0 ? '#f87171' : '#86efac'}">${cut > 0 ? '▲+' : '▽'}${Math.abs(cut).toFixed(1)}%</div>` : '<div class="sf-cut"></div>'}
+    </div>`;
+      }).join('');
+
+      // 年度別明細テーブル（節×性質別）
+      const bySetsu = {};
+      e.rows.forEach(r => {
+        const k = (r['節名'] || '—') + '|' + (r['細節名'] || '—');
+        if (!bySetsu[k]) bySetsu[k] = { setsu: r['節名'] || '—', saisetsu: r['細節名'] || '—', sei: (r['性質名'] || '').trim(), r7: 0, req: 0, r8: 0 };
+        bySetsu[k].r7 += n(r['R7予算額']);
+        bySetsu[k].req += n(r['要求額']);
+        bySetsu[k].r8 += n(r['R8予算額']);
+      });
+      const detailRows = Object.values(bySetsu).sort((a, b) => b.r8 - a.r8);
+      const detailHtml = detailRows.map(d => {
+        const diff = d.r8 - d.r7;
+        const dc = diff > 0 ? 'up' : diff < 0 ? 'dn' : '';
+        const ds = diff === 0 ? '—' : (diff > 0 ? '+' : '') + diff.toLocaleString();
+        return `<tr>
+      <td>${d.setsu}</td>
+      <td style="color:var(--muted)">${d.saisetsu}</td>
+      <td>${d.sei}</td>
+      <td class="r">${d.r7 ? d.r7.toLocaleString() : '—'}</td>
+      <td class="r" style="color:var(--muted)">${d.req ? d.req.toLocaleString() : '—'}</td>
+      <td class="r" style="color:var(--p1);font-weight:700">${d.r8 ? d.r8.toLocaleString() : '—'}</td>
+      <td class="r" style="color:${dc === 'up' ? 'var(--green)' : dc === 'dn' ? 'var(--red)' : 'var(--muted)'};font-weight:${dc ? '700' : '400'}">${ds}</td>
+    </tr>`;
+      }).join('');
+
+      // 評価フラグ
+      const flagDef = [
+        { l: '評価対象', v: e.hyoka, on: '1', label: { on: '対象', off: '対象外' } },
+        { l: '重点ヒアリング', v: e.juten, on: '1', label: { on: '重点', off: '—' }, warn: true },
+        { l: 'ハード事業', v: e.hard, on: '1', label: { on: 'ハード', off: '—' } },
+        { l: '新規/継続', v: e.shinki, on: '0', label: { on: '新規', off: '継続' } },
+        { l: '経費区分', v: e.rinkei, on: '10', label: { on: '臨時', off: '経常' } },
+        { l: '補単区分', v: e.hoshu, on: '1', label: { on: '補助', off: '単独' } },
+      ];
+      const flagsHtml = flagDef.map(f => {
+        const isOn = f.v === f.on || f.v === '1' && f.on === '1';
+        const cls = isOn ? (f.warn ? 'warn' : 'on') : '';
+        return `<div class="flag-item ${cls}">
+      <div class="fl">${f.l}</div>
+      <div class="fv">${isOn ? f.label.on : f.label.off}</div>
+    </div>`;
+      }).join('');
+
+      // localStorage から保存済み内容を取得
+      const savedDesc = localStorage.getItem('desc_' + key) || '';
+      const savedEval = localStorage.getItem('eval_' + key) || '';
+
+      const safeKey = key.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+
+      document.getElementById('drwBody').innerHTML = `
+    <div class="drw-sec">
+      <div class="drw-sec-title">💴 査定フロー（要求 → 確定）</div>
+      <div class="satei-flow">${flowHtml}</div>
+    </div>
+
+    <div class="drw-sec">
+      <div class="drw-sec-title">📋 節・細節別明細</div>
+      <div style="overflow:auto;max-height:220px">
+        <table class="detail-tbl">
+          <thead><tr>
+            <th>節名</th><th>細節名</th><th>性質</th>
+            <th class="r">R7予算額</th><th class="r">要求額</th>
+            <th class="r">R8確定額</th><th class="r">R7比増減</th>
+          </tr></thead>
+          <tbody>${detailHtml}</tbody>
+          <tfoot><tr style="background:#f5f3ff;font-weight:800">
+            <td colspan="3" style="font-size:11px;color:var(--p1)">合計</td>
+            <td class="r">${e.r7 ? e.r7.toLocaleString() : '—'}</td>
+            <td class="r" style="color:var(--muted)">${e.req ? e.req.toLocaleString() : '—'}</td>
+            <td class="r" style="color:var(--p1)">${e.r8 ? e.r8.toLocaleString() : '—'}</td>
+            <td class="r" style="color:${e.r8 - e.r7 > 0 ? 'var(--green)' : e.r8 - e.r7 < 0 ? 'var(--red)' : 'var(--muted)'}">${e.r8 - e.r7 === 0 ? '—' : (e.r8 - e.r7 > 0 ? '+' : '' + (e.r8 - e.r7).toLocaleString())}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="drw-sec">
+      <div class="drw-sec-title">🏷 評価・事業区分</div>
+      <div class="flags-grid">${flagsHtml}</div>
+    </div>
+
+    <div class="drw-sec">
+      <div class="drw-sec-title">📝 事業の説明</div>
+      <textarea class="drw-textarea" id="descArea" placeholder="この事業の目的・概要・背景などを記入してください…">${savedDesc}</textarea>
+      <div style="display:flex;align-items:center;margin-top:6px">
+        <button class="drw-save-btn" onclick="saveNote('${safeKey}','desc')">保存</button>
+        <span class="saved-msg" id="descSaved">✓ 保存しました</span>
+      </div>
+    </div>
+
+    <div class="drw-sec">
+      <div class="drw-sec-title">⭐ 事業への評価・コメント</div>
+      <textarea class="drw-textarea" id="evalArea" placeholder="査定所見・評価・課題・方針などを記入してください…">${savedEval}</textarea>
+      <div style="display:flex;align-items:center;margin-top:6px">
+        <button class="drw-save-btn" onclick="saveNote('${safeKey}','eval')">保存</button>
+        <span class="saved-msg" id="evalSaved">✓ 保存しました</span>
+      </div>
+    </div>
+  `;
+
+      document.getElementById('drawerOverlay').classList.add('open');
+      document.getElementById('drawer').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeDrawer() {
+      document.getElementById('drawerOverlay').classList.remove('open');
+      document.getElementById('drawer').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    function saveNote(key, field) {
+      const ta = document.getElementById(field + 'Area');
+      const msg = document.getElementById(field + 'Saved');
+      localStorage.setItem(field + '_' + key, ta.value);
+      msg.classList.add('show');
+      setTimeout(() => msg.classList.remove('show'), 2000);
+      // カードの「説明あり」バッジを更新
+      renderCards();
+    }
+
+    /* ── TREE ─── */
+    function renderTree() {
+      const el = document.getElementById('treeBody');
+      if (!fil.length) { el.innerHTML = '<div class="empty" style="padding:40px"><div class="ei">🌳</div><div class="et">データがありません</div></div>'; return; }
+
+      // 款→項→目→事業
+      const tree = {};
+      fil.forEach(r => {
+        const k0 = r['款'] + '|' + r['款名'];
+        const k1 = r['項'] + '|' + r['項名'];
+        const k2 = r['目'] + '|' + r['目名'];
+        const k3 = (r['事業２'] || '0') + '|' + (r['事業２名'] || r['事務事業名'] || '—');
+        const add = (obj, key, code, name) => { if (!obj[key]) obj[key] = { code, name, r7: 0, req: 0, r8: 0, ch: {} }; };
+        add(tree, k0, r['款'], r['款名']);
+        tree[k0].r7 += n(r['R7予算額']); tree[k0].req += n(r['要求額']); tree[k0].r8 += n(r['R8予算額']);
+        add(tree[k0].ch, k1, r['項'], r['項名']);
+        tree[k0].ch[k1].r7 += n(r['R7予算額']); tree[k0].ch[k1].req += n(r['要求額']); tree[k0].ch[k1].r8 += n(r['R8予算額']);
+        add(tree[k0].ch[k1].ch, k2, r['目'], r['目名']);
+        tree[k0].ch[k1].ch[k2].r7 += n(r['R7予算額']); tree[k0].ch[k1].ch[k2].req += n(r['要求額']); tree[k0].ch[k1].ch[k2].r8 += n(r['R8予算額']);
+        add(tree[k0].ch[k1].ch[k2].ch, k3, r['事業２'], r['事業２名'] || r['事務事業名'] || '—');
+        tree[k0].ch[k1].ch[k2].ch[k3].r7 += n(r['R7予算額']); tree[k0].ch[k1].ch[k2].ch[k3].req += n(r['要求額']); tree[k0].ch[k1].ch[k2].ch[k3].r8 += n(r['R8予算額']);
+      });
+
+      let uid = 0;
+      function nd(o, lv) {
+        const id = 't' + (uid++);
+        const hasCh = Object.keys(o.ch).length > 0;
+        const diff = o.r8 - o.r7;
+        const dc = diff > 0 ? 'up' : diff < 0 ? 'dn' : '';
+        const ds = diff === 0 ? '—' : (diff > 0 ? '＋' : '') + fs(Math.abs(diff)) + '円';
+        return `<div>
+      <div class="tr l${lv}" onclick="${hasCh ? `tg('${id}')` : ''}" style="${!hasCh ? 'cursor:default' : ''}">
+        <div class="tn">
+          <span class="tog">${hasCh ? '▶' : ''}</span>
+          <span class="tc">${o.code || ''}</span>
+          <span class="tt">${o.name || '—'}</span>
+        </div>
+        <div class="ta req">${o.req > 0 ? o.req.toLocaleString() : '—'}</div>
+        <div class="ta">${o.r8 > 0 ? (o.req > 0 && o.r8 < o.req ? '<span style="color:var(--red)">' : '<span>') + o.r8.toLocaleString() + '</span>' : '—'}</div>
+        <div class="ta r8">${o.r8 > 0 ? o.r8.toLocaleString() : '—'}</div>
+        <div class="tdiff ${dc}">${ds}</div>
+      </div>
+      ${hasCh ? `<div class="ch" id="${id}">${Object.values(o.ch).sort((a, b) => (a.code || '').localeCompare(b.code || '', undefined, { numeric: true })).map(c => nd(c, lv + 1)).join('')}</div>` : ''}
+    </div>`;
+      }
+
+      el.innerHTML = Object.values(tree).sort((a, b) => (a.code || '').localeCompare(b.code || '', undefined, { numeric: true })).map(o => nd(o, 0)).join('');
+    }
+    function tg(id) {
+      const el = document.getElementById(id);
+      const tog = el.previousElementSibling.querySelector('.tog');
+      el.classList.toggle('open');
+      tog.textContent = el.classList.contains('open') ? '▼' : '▶';
+    }
+
+    /* ── CHARTS ─── */
+    function renderCharts() {
+      Object.values(chts).forEach(c => c.destroy()); chts = {};
+
+      const byKan = {};
+      fil.forEach(r => {
+        const k = r['款名'] || '不明';
+        if (!byKan[k]) byKan[k] = { r7: 0, r8: 0 };
+        byKan[k].r7 += n(r['R7予算額']); byKan[k].r8 += n(r['R8予算額']);
+      });
+      const kl = Object.keys(byKan).sort((a, b) => byKan[b].r8 - byKan[a].r8);
+
+      const bySei = {};
+      fil.forEach(r => {
+        const k = (r['性質名'] || '不明').trim();
+        if (!bySei[k]) bySei[k] = 0;
+        bySei[k] += n(r['R8予算額']);
+      });
+      const sl = Object.keys(bySei).sort((a, b) => bySei[b] - bySei[a]).slice(0, 8);
+
+      const byDept = {};
+      fil.forEach(r => {
+        const k = r['所属名'] || '不明';
+        if (!byDept[k]) byDept[k] = 0;
+        byDept[k] += n(r['R8予算額']);
+      });
+      const dl = Object.keys(byDept).sort((a, b) => byDept[b] - byDept[a]).slice(0, 12);
+
+      const sh = l => l.length > 14 ? l.slice(0, 13) + '…' : l;
+      const baseOpts = {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+        scales: { y: { ticks: { callback: v => v.toLocaleString() + ' 万', font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
+      };
+
+      chts.kan = new Chart(document.getElementById('cKan'), {
+        type: 'bar',
+        data: {
+          labels: kl.map(sh), datasets: [
+            { label: 'R7', data: kl.map(k => byKan[k].r7 / 1e4), backgroundColor: 'rgba(165,180,252,.6)', borderRadius: 4 },
+            { label: 'R8', data: kl.map(k => byKan[k].r8 / 1e4), backgroundColor: 'rgba(79,70,229,.7)', borderRadius: 4 },
+          ]
+        }, options: baseOpts
+      });
+
+      const pieColors = kl.map((_, i) => `hsl(${250 + i * 28},${70 - i * 4}%,${45 + i * 5}%)`);
+      chts.pie = new Chart(document.getElementById('cPie'), {
+        type: 'doughnut',
+        data: { labels: kl.map(sh), datasets: [{ data: kl.map(k => byKan[k].r8 / 1e4), backgroundColor: pieColors, borderWidth: 1 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10 } },
+            tooltip: { callbacks: { label: c => c.label + ': ' + c.parsed.toLocaleString() + ' 万円' } }
+          }
+        }
+      });
+
+      const seiColors = ['#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#ddd6fe', '#ede9fe', '#f5f3ff', '#eef2ff'];
+      chts.sei = new Chart(document.getElementById('cSeishitu'), {
+        type: 'bar',
+        data: { labels: sl.map(sh), datasets: [{ label: 'R8', data: sl.map(k => bySei[k] / 1e4), backgroundColor: sl.map((_, i) => seiColors[i % seiColors.length]), borderRadius: 4 }] },
+        options: { ...baseOpts, plugins: { legend: { display: false } }, indexAxis: 'y' }
+      });
+
+      chts.dept = new Chart(document.getElementById('cDept'), {
+        type: 'bar',
+        data: { labels: dl.map(sh), datasets: [{ label: 'R8', data: dl.map(k => byDept[k] / 1e4), backgroundColor: 'rgba(99,102,241,.7)', borderRadius: 4 }] },
+        options: { ...baseOpts, plugins: { legend: { display: false } }, indexAxis: 'y' }
+      });
+
+      const shinkiCnt = { new: 0, cont: 0 };
+      const jimu = new Set();
+      fil.forEach(r => {
+        const k = r['事務事業名']; if (!k || jimu.has(k)) return; jimu.add(k);
+        if (r['新規継続'] === '0') shinkiCnt.new++; else shinkiCnt.cont++;
+      });
+      chts.shinki = new Chart(document.getElementById('cShinki'), {
+        type: 'doughnut',
+        data: { labels: ['新規事業', '継続事業'], datasets: [{ data: [shinkiCnt.new, shinkiCnt.cont], backgroundColor: ['#fbbf24', '#6366f1'], borderWidth: 1 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+      });
+    }
+
+    /* ── TREEMAP (custom canvas — Chart.js plugin 不使用) ─── */
+    let tmRects = [], tmGroupRects = [], tmHoverIdx = -1, tmColorMode = 'kan';
+
+    const PALETTE = [
+      '#4f46e5', '#0891b2', '#059669', '#d97706', '#dc2626',
+      '#7c3aed', '#0284c7', '#16a34a', '#ca8a04', '#b91c1c',
+      '#6d28d9', '#0369a1', '#15803d', '#b45309', '#991b1b',
+      '#5b21b6', '#075985', '#166534', '#92400e', '#7f1d1d',
+    ];
+    function palette(i) { return PALETTE[i % PALETTE.length]; }
+
+    function cutToHsl(pct) {
+      const c = Math.min(1, Math.max(0, pct / 50));
+      return `hsl(${Math.round(120 * (1 - c))},72%,${Math.round(42 + c * 12)}%)`;
+    }
+
+    /* ─ Squarified treemap algorithm ─ */
+    function tmWorst(row, shortSide) {
+      if (!row.length) return Infinity;
+      const s = row.reduce((a, d) => a + d._area, 0);
+      const max = Math.max(...row.map(d => d._area));
+      const min = Math.min(...row.map(d => d._area));
+      return Math.max(shortSide * shortSide * max / (s * s), s * s / (shortSide * shortSide * min));
+    }
+
+    function squarify(items, x, y, w, h) {
+      if (!items.length || w < 1 || h < 1) return [];
+      const total = items.reduce((a, d) => a + d.v, 0);
+      if (!total) return [];
+      const scale = (w * h) / total;
+      const data = [...items].sort((a, b) => b.v - a.v).map(d => ({ ...d, _area: d.v * scale }));
+      const out = [];
+
+      function lay(arr, rx, ry, rw, rh) {
+        if (!arr.length || rw < 1 || rh < 1) return;
+        if (arr.length === 1) { out.push({ ...arr[0], x: rx, y: ry, w: rw, h: rh }); return; }
+        const short = Math.min(rw, rh);
+        let row = [arr[0]], i = 1;
+        while (i < arr.length) {
+          const nr = [...row, arr[i]];
+          if (tmWorst(nr, short) <= tmWorst(row, short)) { row = nr; i++; }
+          else break;
+        }
+        const rowArea = row.reduce((a, d) => a + d._area, 0);
+        if (rw >= rh) {
+          const rW = rowArea / rh; let py = ry;
+          row.forEach(d => { const dh = d._area / rW; out.push({ ...d, x: rx, y: py, w: rW, h: dh }); py += dh; });
+          lay(arr.slice(i), rx + rW, ry, rw - rW, rh);
+        } else {
+          const rH = rowArea / rw; let px = rx;
+          row.forEach(d => { const dw = d._area / rH; out.push({ ...d, x: px, y: ry, w: dw, h: rH }); px += dw; });
+          lay(arr.slice(i), rx, ry + rH, rw, rh - rH);
+        }
+      }
+      lay(data, x, y, w, h);
+      return out;
+    }
+
+    /* ─ Canvas drawing ─ */
+    function tmDraw() {
+      const canvas = document.getElementById('tmCanvas');
+      const wrap = document.getElementById('tmCanvasWrap');
+      const dpr = window.devicePixelRatio || 1;
+      const W = wrap.clientWidth, H = wrap.clientHeight;
+      if (!W || !H) return;
+      canvas.width = W * dpr; canvas.height = H * dpr;
+      canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, W, H);
+
+      const GH = 20; // group header height
+
+      // group backgrounds + headers
+      tmGroupRects.forEach(g => {
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fillRect(g.x, g.y, g.w, g.h);
+        ctx.fillStyle = g._hdrCol || '#64748b';
+        ctx.fillRect(g.x, g.y, g.w, Math.min(GH, g.h));
+        if (g.w > 30) {
+          ctx.save();
+          ctx.beginPath(); ctx.rect(g.x + 3, g.y, g.w - 6, GH); ctx.clip();
+          ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Meiryo UI,sans-serif';
+          ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          ctx.fillText(g._key || '', g.x + 4, g.y + GH / 2);
+          ctx.restore();
+        }
+      });
+
+      // item rects
+      tmRects.forEach((r, i) => {
+        if (r.w < 2 || r.h < 2) return;
+        const col = r.col[tmColorMode] || '#4f46e5';
+        ctx.globalAlpha = i === tmHoverIdx ? 1 : .82;
+        ctx.fillStyle = col;
+        ctx.fillRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+        if (i === tmHoverIdx) {
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+          ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+        }
+        ctx.globalAlpha = 1;
+        const lw = r.w - 8, lh = r.h - 8;
+        if (lw > 28 && lh > 12) {
+          ctx.save();
+          ctx.beginPath(); ctx.rect(r.x + 4, r.y + 4, r.w - 8, r.h - 8); ctx.clip();
+          ctx.fillStyle = 'rgba(255,255,255,.95)';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+          const chars = Math.max(4, Math.floor(lw / 7));
+          const name = r.l.length > chars ? r.l.slice(0, chars - 1) + '…' : r.l;
+          if (lh > 32) {
+            ctx.font = 'bold 11px Meiryo UI,sans-serif';
+            ctx.fillText(name, cx, cy - 8);
+            ctx.font = '10px Meiryo UI,sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,.75)';
+            ctx.fillText(fs(r.v) + '円', cx, cy + 8);
+          } else {
+            ctx.font = 'bold 10px Meiryo UI,sans-serif';
+            ctx.fillText(name, cx, cy);
+          }
+          ctx.restore();
+        }
+      });
+    }
+
+    /* ─ Build data and render ─ */
+    function renderTreemap() {
+      if (!Object.keys(cardData).length) return;
+      tmColorMode = document.getElementById('tmColor').value;
+      const groupMode = document.getElementById('tmGroup').value;
+      const amtField = document.getElementById('tmAmt').value;
+
+      // color maps
+      const kanCM = {}, seiCM = {}, deptCM = {};
+      let ki = 0, si = 0, di = 0;
+      Object.values(cardData).forEach(e => {
+        if (!(e.kan in kanCM)) kanCM[e.kan] = palette(ki++);
+        if (!((e.sei || '不明') in seiCM)) seiCM[e.sei || '不明'] = palette(si++);
+        if (!(e.dept in deptCM)) deptCM[e.dept] = palette(di++);
+      });
+
+      const allItems = [];
+      Object.values(cardData).forEach(e => {
+        const v = amtField === 'r8' ? e.r8 : amtField === 'r7' ? e.r7 : e.req;
+        if (v <= 0) return;
+        const cut = e.req > 0 ? ((e.req - e.r8) / e.req * 100) : 0;
+        let g1 = e.kan;
+        if (groupMode === 'sei') g1 = e.sei || '不明';
+        if (groupMode === 'dept') g1 = e.dept || '不明';
+        allItems.push({
+          v, l: e.name, g1,
+          kan: e.kan, sei: e.sei || '不明', dept: e.dept,
+          cut, shinki: e.shinki,
+          col: {
+            kan: kanCM[e.kan],
+            sei: seiCM[e.sei || '不明'],
+            dept: deptCM[e.dept],
+            cut: cutToHsl(cut),
+            shinki: e.shinki === '0' ? '#f59e0b' : '#6366f1',
+          }
+        });
+      });
+
+      document.getElementById('tmCount').textContent = allItems.length + '事業';
+
+      // grouping
+      const grpMap = {};
+      allItems.forEach(d => {
+        if (!grpMap[d.g1]) grpMap[d.g1] = {
+          _key: d.g1, v: 0, items: [],
+          _hdrCol: groupMode === 'sei' ? seiCM[d.g1] : groupMode === 'dept' ? deptCM[d.g1] : kanCM[d.kan]
+        };
+        grpMap[d.g1].v += d.v;
+        grpMap[d.g1].items.push(d);
+      });
+      const groups = Object.values(grpMap);
+
+      const wrap = document.getElementById('tmCanvasWrap');
+      const W = wrap.clientWidth || 800, H = wrap.clientHeight || 500;
+      const GH = 20, PAD = 1;
+
+      // squarify groups
+      tmGroupRects = squarify(groups, 0, 0, W, H);
+
+      // squarify items within each group
+      tmRects = [];
+      tmGroupRects.forEach(g => {
+        const ix = g.x + PAD, iy = g.y + GH + PAD;
+        const iw = g.w - PAD * 2, ih = g.h - GH - PAD * 2;
+        if (iw > 4 && ih > 4) {
+          squarify(g.items, ix, iy, iw, ih).forEach(r => tmRects.push(r));
+        }
+      });
+
+      tmHoverIdx = -1;
+      tmDraw();
+      buildTmLegend(tmColorMode, kanCM, seiCM, deptCM);
+      setupTmEvents();
+    }
+
+    function setupTmEvents() {
+      const canvas = document.getElementById('tmCanvas');
+      const tip = document.getElementById('tmTooltip');
+      canvas.onmousemove = e => {
+        const b = canvas.getBoundingClientRect();
+        const mx = (e.clientX - b.left) * (canvas.width / canvas.clientWidth / (window.devicePixelRatio || 1));
+        const my = (e.clientY - b.top) * (canvas.height / canvas.clientHeight / (window.devicePixelRatio || 1));
+        const hit = tmRects.findIndex(r => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h);
+        if (hit !== tmHoverIdx) { tmHoverIdx = hit; tmDraw(); }
+        if (hit >= 0) {
+          const d = tmRects[hit];
+          canvas.style.cursor = 'pointer';
+          tip.innerHTML = `<strong>${d.l}</strong><br>所属: ${d.dept}<br>款: ${d.kan}<br>性質: ${d.sei}<br>金額: <strong>${d.v.toLocaleString()} 円</strong><br>削減率: ${d.cut.toFixed(1)}%${d.shinki === '0' ? '<br><span style="color:#f59e0b;font-weight:700">★ 新規事業</span>' : ''}`;
+          tip.style.display = 'block';
+          tip.style.left = (e.clientX + 14) + 'px';
+          tip.style.top = (e.clientY - 10) + 'px';
+        } else {
+          canvas.style.cursor = 'default';
+          tip.style.display = 'none';
+        }
+      };
+      canvas.onmouseleave = () => {
+        tip.style.display = 'none';
+        if (tmHoverIdx >= 0) { tmHoverIdx = -1; tmDraw(); }
+      };
+      canvas.onclick = () => {
+        if (tmHoverIdx < 0) return;
+        const d = tmRects[tmHoverIdx];
+        if (!d?.l) return;
+        const btn = document.querySelector('.vt[onclick*="analysis"]');
+        if (btn) {
+          sv('analysis', btn);
+          selectProject(d.l);
+          setTimeout(() => {
+            const sel = document.querySelector('.anlys-item.selected');
+            if (sel) sel.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }, 150);
+        }
+      };
+    }
+
+    function buildTmLegend(colorMode, kanCM, seiCM, deptCM) {
+      const el = document.getElementById('tmLegend');
+      if (colorMode === 'cut') {
+        el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)">
+      <span>削減率 低(0%)</span>
+      <div style="width:160px;height:12px;border-radius:4px;background:linear-gradient(90deg,hsl(120,72%,42%),hsl(0,72%,54%))"></div>
+      <span>高(50%+)</span></div>`;
+        return;
+      }
+      if (colorMode === 'shinki') {
+        el.innerHTML = `<div class="tm-legend-item"><div class="tm-legend-dot" style="background:#f59e0b"></div>新規事業</div>
+      <div class="tm-legend-item"><div class="tm-legend-dot" style="background:#6366f1"></div>継続事業</div>`;
+        return;
+      }
+      const src = colorMode === 'sei' ? seiCM : colorMode === 'dept' ? deptCM : kanCM;
+      el.innerHTML = Object.entries(src).map(([k, c]) => `<div class="tm-legend-item">
+    <div class="tm-legend-dot" style="background:${c}"></div>${k}</div>`).join('');
+    }
+
+    /* ── 事業分析 ─── */
+    let currentProject = null, achts = {};
+
+    function renderAnalysisList() {
+      const q = (document.getElementById('anlysQ').value || '').toLowerCase();
+      const el = document.getElementById('anlysList');
+      if (!Object.keys(cardData).length) { return; }
+
+      // 款でグループ化
+      const byKan = {};
+      Object.values(cardData).forEach(e => {
+        if (q && !e.name.toLowerCase().includes(q) && !e.moku.toLowerCase().includes(q)) return;
+        const k = e.kan || 'その他';
+        if (!byKan[k]) byKan[k] = [];
+        byKan[k].push(e);
+      });
+
+      let html = '';
+      Object.keys(byKan).sort().forEach(kan => {
+        const list = byKan[kan].sort((a, b) => b.r8 - a.r8);
+        html += `<div class="anlys-group-hd">${kan}（${list.length}件）</div>`;
+        html += list.map(e => {
+          const cutPct = e.req > 0 ? ((e.req - e.r8) / e.req * 100) : 0;
+          const cutCls = cutPct > 20 ? 'hi' : cutPct > 5 ? 'md' : 'lo';
+          const cutLabel = e.req > 0 ? `<span class="cut-badge ${cutCls}">${cutPct.toFixed(0)}%削減</span>` : '';
+          const sel = currentProject === e.name ? 'selected' : '';
+          return `<div class="anlys-item ${sel}" onclick="selectProject('${e.name.replace(/'/g, "&#39;")}')">
+        <div class="anlys-item-dot"></div>
+        <div class="anlys-item-name" title="${e.name}">${e.name}</div>
+        <div class="anlys-item-amt">${fs(e.r8)}円<br>${cutLabel}</div>
+      </div>`;
+        }).join('');
+      });
+      if (!html) html = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">該当する事業がありません</div>';
+      el.innerHTML = html;
+    }
+
+    function selectProject(key) {
+      currentProject = key;
+      renderAnalysisList(); // リスト側の選択状態を更新
+      renderProjectDetail(key);
+    }
+
+    function renderProjectDetail(key) {
+      const e = cardData[key]; if (!e) return;
+      const panel = document.getElementById('anlysPanel');
+
+      // 査定フロー用データ
+      const steps = [
+        { l: 'R7予算', v: e.r7, c: 'rgba(148,163,184,.7)' },
+        { l: '要求額', v: e.req, c: 'rgba(99,102,241,.5)' },
+        { l: '査定①', v: e.s1, c: 'rgba(99,102,241,.65)' },
+        { l: '査定②', v: e.s2, c: 'rgba(79,70,229,.75)' },
+        { l: '査定③', v: e.s3, c: 'rgba(67,56,202,.85)' },
+        { l: 'R8確定', v: e.r8, c: 'rgba(55,48,163,1)' },
+      ];
+      const diff = e.r8 - e.r7;
+      const cutPct = e.req > 0 ? ((e.req - e.r8) / e.req * 100) : 0;
+      const reqDiff = e.r8 - e.req;
+
+      // 性質別集計
+      const bySei = {};
+      e.rows.forEach(r => { const k = (r['性質名'] || '不明').trim(); if (!bySei[k]) bySei[k] = 0; bySei[k] += n(r['R8予算額']); });
+      const seiKeys = Object.keys(bySei).sort((a, b) => bySei[b] - bySei[a]);
+
+      // 節・細節明細
+      const bySetsu = {};
+      e.rows.forEach(r => {
+        const k = (r['節名'] || '—') + '||' + (r['細節名'] || '—');
+        if (!bySetsu[k]) bySetsu[k] = { setsu: r['節名'] || '—', sai: r['細節名'] || '—', sei: (r['性質名'] || '').trim(), r7: 0, req: 0, s1: 0, s2: 0, s3: 0, r8: 0 };
+        bySetsu[k].r7 += n(r['R7予算額']); bySetsu[k].req += n(r['要求額']);
+        bySetsu[k].s1 += n(r['査定額１']); bySetsu[k].s2 += n(r['査定額２']); bySetsu[k].s3 += n(r['査定額３']);
+        bySetsu[k].r8 += n(r['R8予算額']);
+      });
+      const detailRows = Object.values(bySetsu).sort((a, b) => b.r8 - a.r8);
+
+      // 同一目内の事業一覧（全データから）
+      const sameMoku = Object.values(cardData).filter(x => x.moku === e.moku && x.kan === e.kan).sort((a, b) => b.r8 - a.r8);
+
+      // 評価フラグ
+      const flags = [
+        { l: '評価対象', on: e.hyoka === '1', label: '対象', off: '対象外' },
+        { l: '重点ヒアリング', on: e.juten === '1', label: '重点', off: '—', warn: true },
+        { l: 'ハード事業', on: e.hard === '1', label: 'ハード', off: '—' },
+        { l: '新規/継続', on: e.shinki === '0', label: '新規', off: '継続' },
+        { l: '経費区分', on: e.rinkei === '10', label: '臨時', off: '経常' },
+        { l: '補単区分', on: e.hoshu === '1', label: '補助', off: '単独' },
+      ];
+
+      const savedDesc = localStorage.getItem('desc_' + key) || '';
+      const savedEval = localStorage.getItem('eval_' + key) || '';
+      const safeKey = key.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+
+      panel.innerHTML = `
+    <div class="anlys-hd">
+      <div class="anlys-bread">${e.kan} › ${e.kou} › ${e.moku}</div>
+      <div class="anlys-title">${e.name}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">所属: <strong>${e.dept}</strong></div>
+      <div class="anlys-kpis">
+        <div class="anlys-kpi"><div class="ak-lbl">R7予算額</div><div class="ak-val">${fs(e.r7)}円</div></div>
+        <div class="anlys-kpi"><div class="ak-lbl">要求額</div><div class="ak-val">${fs(e.req)}円</div></div>
+        <div class="anlys-kpi r8"><div class="ak-lbl">R8確定額</div><div class="ak-val">${fs(e.r8)}円</div></div>
+        <div class="anlys-kpi ${diff >= 0 ? '' : 'cut'}"><div class="ak-lbl">R7比増減</div><div class="ak-val">${diff >= 0 ? '＋' : ''}${fs(diff)}円</div></div>
+        <div class="anlys-kpi cut"><div class="ak-lbl">要求削減率</div><div class="ak-val">${cutPct > 0 ? cutPct.toFixed(1) + '%' : '削減なし'}</div></div>
+        <div class="anlys-kpi"><div class="ak-lbl">明細行数</div><div class="ak-val">${e.rows.length}行</div></div>
+      </div>
+    </div>
+    <div class="anlys-ph">
+
+      <!-- 査定フロー -->
+      <div class="an-sec">
+        <div class="an-sec-title">📉 査定フロー</div>
+        <div class="an-sec-sub">要求額から確定予算額までの変化（単位：円）</div>
+        <div class="an-grid2" style="align-items:start">
+          <div class="cw-an"><canvas id="acSatei"></canvas></div>
+          <div>
+            ${steps.map((s, i) => {
+        const prev = i > 0 ? steps[i - 1].v : 0;
+        const chg = i > 0 && prev > 0 ? ((s.v - prev) / prev * 100) : null;
+        const pctMax = Math.max(...steps.map(x => x.v)) || 1;
+        const barW = s.v > 0 ? Math.round(s.v / pctMax * 100) : 0;
+        return `<div class="cut-bar-row">
+                <div class="cut-bar-label" title="${s.l}">${s.l}</div>
+                <div class="cut-bar-track">
+                  <div class="cut-bar-fill" style="width:${barW}%;background:${s.c}"></div>
+                </div>
+                <div class="cut-bar-val" style="color:${chg !== null && chg < 0 ? 'var(--red)' : chg > 0 ? 'var(--green)' : 'var(--muted)'}">
+                  ${s.v > 0 ? s.v.toLocaleString() : '—'}
+                </div>
+              </div>`;
+      }).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- 性質別 + 評価フラグ -->
+      <div class="an-grid2">
+        <div class="an-sec">
+          <div class="an-sec-title">📊 性質別 R8 予算内訳</div>
+          <div class="an-sec-sub">支出の性質分類（人件費・物件費 等）</div>
+          <div class="cw-an"><canvas id="acSei"></canvas></div>
+        </div>
+        <div class="an-sec">
+          <div class="an-sec-title">🏷 評価・事業区分</div>
+          <div class="an-sec-sub">各種フラグの状態</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            ${flags.map(f => `<div class="flag-item ${f.on ? (f.warn ? 'warn' : 'on') : ''}">
+              <div class="fl">${f.l}</div>
+              <div class="fv">${f.on ? f.label : f.off}</div>
+            </div>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- 節・細節明細 -->
+      <div class="an-sec">
+        <div class="an-sec-title">📋 節・細節 明細（${detailRows.length}行）</div>
+        <div class="an-sec-sub">各支出項目ごとの査定フロー比較</div>
+        <div style="overflow:auto;max-height:260px">
+          <table class="an-tbl">
+            <thead><tr>
+              <th>節名</th><th>細節名</th><th>性質</th>
+              <th class="r">R7予算</th><th class="r">要求額</th>
+              <th class="r">査定①</th><th class="r">査定②</th><th class="r">査定③</th>
+              <th class="r">R8確定</th><th class="r">要求比</th>
+            </tr></thead>
+            <tbody>
+              ${detailRows.map(d => {
+        const reqDiff2 = d.req > 0 ? d.r8 - d.req : 0;
+        const rd = reqDiff2 === 0 ? '—' : (reqDiff2 > 0 ? '+' : '') + reqDiff2.toLocaleString();
+        const rc = reqDiff2 < 0 ? 'var(--red)' : reqDiff2 > 0 ? 'var(--green)' : 'var(--muted)';
+        return `<tr>
+                  <td>${d.setsu}</td><td style="color:var(--muted)">${d.sai}</td>
+                  <td><span class="pill sinsa" style="font-size:10px">${d.sei}</span></td>
+                  <td class="r">${d.r7 ? d.r7.toLocaleString() : '—'}</td>
+                  <td class="r" style="color:var(--muted)">${d.req ? d.req.toLocaleString() : '—'}</td>
+                  <td class="r">${d.s1 ? d.s1.toLocaleString() : '—'}</td>
+                  <td class="r">${d.s2 ? d.s2.toLocaleString() : '—'}</td>
+                  <td class="r">${d.s3 ? d.s3.toLocaleString() : '—'}</td>
+                  <td class="r" style="color:var(--p1);font-weight:700">${d.r8 ? d.r8.toLocaleString() : '—'}</td>
+                  <td class="r" style="color:${rc};font-weight:${reqDiff2 ? 700 : 400}">${rd}</td>
+                </tr>`;
+      }).join('')}
+            </tbody>
+            <tfoot><tr class="subtotal">
+              <td colspan="3">合計</td>
+              <td class="r">${e.r7 ? e.r7.toLocaleString() : '—'}</td>
+              <td class="r">${e.req ? e.req.toLocaleString() : '—'}</td>
+              <td class="r">${e.s1 ? e.s1.toLocaleString() : '—'}</td>
+              <td class="r">${e.s2 ? e.s2.toLocaleString() : '—'}</td>
+              <td class="r">${e.s3 ? e.s3.toLocaleString() : '—'}</td>
+              <td class="r">${e.r8 ? e.r8.toLocaleString() : '—'}</td>
+              <td class="r">${reqDiff >= 0 ? '+' : '' + (reqDiff).toLocaleString()}</td>
+            </tr></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- 同一目内 比較 -->
+      ${sameMoku.length > 1 ? `
+      <div class="an-sec">
+        <div class="an-sec-title">📌 同一目内 事業比較（${e.moku}）</div>
+        <div class="an-sec-sub">${sameMoku.length}事業 — R8確定額で降順。★は本事業</div>
+        <div class="cw-tall" style="height:${Math.min(400, sameMoku.length * 28 + 40)}px">
+          <canvas id="acComp"></canvas>
+        </div>
+      </div>`: ''}
+
+      <!-- 削減率 ランキング -->
+      <div class="an-sec">
+        <div class="an-sec-title">📉 同一款内 削減率比較（${e.kan}）</div>
+        <div class="an-sec-sub">要求比削減率の高い事業トップ20。赤線が本事業の削減率</div>
+        <div class="cw-an"><canvas id="acCutRank"></canvas></div>
+      </div>
+
+      <!-- 事業説明 -->
+      <div class="an-sec">
+        <div class="an-sec-title">📝 事業の説明</div>
+        <textarea class="an-note-ta" id="anDescArea" placeholder="この事業の目的・概要・背景などを記入してください…">${savedDesc}</textarea>
+        <div style="display:flex;align-items:center">
+          <button class="an-save-btn" onclick="anSave('${safeKey}','desc')">保存</button>
+          <span class="an-saved" id="anDescSaved">✓ 保存しました</span>
+        </div>
+      </div>
+
+      <!-- 評価コメント -->
+      <div class="an-sec">
+        <div class="an-sec-title">⭐ 事業への評価・コメント</div>
+        <textarea class="an-note-ta" id="anEvalArea" placeholder="査定所見・評価・課題・方針などを記入してください…">${savedEval}</textarea>
+        <div style="display:flex;align-items:center">
+          <button class="an-save-btn" onclick="anSave('${safeKey}','eval')">保存</button>
+          <span class="an-saved" id="anEvalSaved">✓ 保存しました</span>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+      // 既存の分析チャートを破棄
+      Object.values(achts).forEach(c => c.destroy()); achts = {};
+
+      // 査定フローチャート
+      achts.satei = new Chart(document.getElementById('acSatei'), {
+        type: 'bar',
+        data: {
+          labels: steps.map(s => s.l),
+          datasets: [{
+            label: '金額',
+            data: steps.map(s => s.v),
+            backgroundColor: steps.map(s => s.c),
+            borderRadius: 5,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.parsed.y.toLocaleString() + ' 円' } } },
+          scales: { y: { ticks: { callback: v => fs(v) }, grid: { color: '#f3f4f6' } } }
+        }
+      });
+
+      // 性質別ドーナツ
+      const seiColors = ['#4f46e5', '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#ddd6fe', '#ede9fe', '#e0e7ff'];
+      achts.sei = new Chart(document.getElementById('acSei'), {
+        type: 'doughnut',
+        data: {
+          labels: seiKeys,
+          datasets: [{ data: seiKeys.map(k => bySei[k]), backgroundColor: seiColors, borderWidth: 1 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 10 } },
+            tooltip: { callbacks: { label: c => c.label + ': ' + c.parsed.toLocaleString() + ' 円' } }
+          }
+        }
+      });
+
+      // 同一目内比較
+      if (sameMoku.length > 1 && document.getElementById('acComp')) {
+        const compLabels = sameMoku.map(x => x.name === key ? '★ ' + x.name : x.name);
+        const compColors = sameMoku.map(x => x.name === key ? 'rgba(79,70,229,1)' : 'rgba(165,180,252,.6)');
+        achts.comp = new Chart(document.getElementById('acComp'), {
+          type: 'bar',
+          data: {
+            labels: compLabels,
+            datasets: [
+              { label: 'R7', data: sameMoku.map(x => x.r7 / 1e4), backgroundColor: 'rgba(203,213,225,.5)', borderRadius: 3, barThickness: 10 },
+              { label: 'R8', data: sameMoku.map(x => x.r8 / 1e4), backgroundColor: compColors, borderRadius: 3, barThickness: 10 },
+            ]
+          },
+          options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'top', labels: { font: { size: 11 } } },
+              tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.parsed.x.toLocaleString() + ' 万円' } }
+            },
+            scales: {
+              x: { ticks: { callback: v => v.toLocaleString() + ' 万', font: { size: 10 } } },
+              y: { ticks: { font: { size: 10 }, callback: v => v.length > 16 ? v.slice(0, 15) + '…' : v } }
+            }
+          }
+        });
+      }
+
+      // 削減率ランキング（同款内）
+      const kanProjects = Object.values(cardData)
+        .filter(x => x.kan === e.kan && x.req > 0)
+        .map(x => ({ name: x.name, cut: (x.req - x.r8) / x.req * 100 }))
+        .sort((a, b) => b.cut - a.cut)
+        .slice(0, 20);
+      const myRank = kanProjects.findIndex(x => x.name === key);
+      achts.cutRank = new Chart(document.getElementById('acCutRank'), {
+        type: 'bar',
+        data: {
+          labels: kanProjects.map(x => x.name === key ? '★ ' + x.name : x.name),
+          datasets: [{
+            label: '削減率(%)',
+            data: kanProjects.map(x => x.cut),
+            backgroundColor: kanProjects.map(x => x.name === key ? 'rgba(239,68,68,.85)' : 'rgba(165,180,252,.6)'),
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: c => c.parsed.y.toFixed(1) + '% 削減' } }
+          },
+          scales: {
+            y: { title: { display: true, text: '削減率（%）', font: { size: 10 } }, ticks: { callback: v => v.toFixed(0) + '%', font: { size: 10 } } },
+            x: { ticks: { font: { size: 9 }, callback: v => typeof v === 'string' && v.length > 12 ? v.slice(0, 11) + '…' : v } }
+          }
+        }
+      });
+    }
+
+    function anSave(key, field) {
+      const ta = document.getElementById('an' + field.charAt(0).toUpperCase() + field.slice(1) + 'Area');
+      const msg = document.getElementById('an' + field.charAt(0).toUpperCase() + field.slice(1) + 'Saved');
+      localStorage.setItem(field + '_' + key, ta.value);
+      msg.classList.add('show');
+      setTimeout(() => msg.classList.remove('show'), 2000);
+    }
+
+    /* ── VIEW SWITCH ─── */
+    function sv(name, btn) {
+      document.querySelectorAll('.vt').forEach(b => b.classList.remove('on'));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
+      btn.classList.add('on');
+      document.getElementById('view-' + name).classList.add('on');
+      if (name === 'analysis') renderAnalysisList();
+      if (name === 'treemap') renderTreemap();
+    }
+  </script>
+</body>
+
+</html>
